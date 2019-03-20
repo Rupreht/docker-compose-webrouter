@@ -1,0 +1,61 @@
+version: '3'
+
+networks:
+  frontend:
+    external:
+      name: frontend
+  backend:
+    external:
+      name: backend
+
+volumes:
+  certs:
+  vhost.d:
+  html:
+
+services:
+  proxy:
+    container_name: proxy
+    build: ./proxy
+    restart: always
+    ports:
+      - "${IP:-0.0.0.0}:80:80/tcp"
+      - "${IP:-0.0.0.0}:443:443/tcp"
+    labels:
+      com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy: "true"
+    volumes:
+      - certs:/etc/nginx/certs:ro
+      - vhost.d:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    environment:
+      TZ: ${TZ}
+      ENABLE_IPV6: ${ENABLE_IPV6:-false}
+    networks:
+      - frontend
+    logging:
+      driver: ${NGINX_PROXY_LOG_DRIVER:-json-file}
+      options:
+        max-size: ${NGINX_PROXY_LOG_MAX_SIZE:-2m}
+        max-file: ${NGINX_PROXY_LOG_MAX_FILE:-4}
+
+  letsencrypt-companion:
+    container_name: letsencrypt-companion
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    restart: always
+    volumes:
+      - certs:/etc/nginx/certs
+      - vhost.d:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      TZ: ${TZ}
+    networks:
+      - frontend
+    depends_on:
+      - proxy
+    logging:
+      driver: ${LETS_LOG_DRIVER:-json-file}
+      options:
+        max-size: ${LETS_LOG_MAX_SIZE:-1m}
+        max-file: ${LETS_LOG_MAX_FILE:-4}
